@@ -1,0 +1,87 @@
+from collections.abc import Iterable
+import json
+"""
+iterable: đối tượng có thể lặp - giống như quấn sách có lật ra từng trang nhưng nó lại không tự động lật trang cho bạn.
+iterator: đối tượng thực hiện việc lặp - giống như tay của bạn khi lật từng trang sách. Mỗi lần bạn lật là bạn đang sử dụng iterator.
+khi muốn lật sang trang khác ta dùng next(iterator). Iterator thực chất là một con trỏ, ghi nhớ vị trí hiện tại, và next() sẽ di chuyển con trỏ sang phần tử tiếp theo
+khi được gọi. Khi cần tạo ra một iterator từ 1 iterable, ta dùng hàm iter()
+"""
+# Mục tiêu là load toàn bộ corpus để xây dựng toàn bộ từ điển cùng một lúc, nhưng không thể do dung lượng RAM giới hạn.
+# Ta sẽ load từng câu trong corpus, tính toán tần suất và xây dựng từ điển theo từng câu.
+
+
+
+
+class BuildVocabFromIterator:
+    """
+    Class này có nhiệm vụ xây dựng từ điển từ một tập hợp các từ (iterator).
+    param: 
+        iterator : Iterable[str] : Tập hợp các từ cần xây dựng từ điển
+        vocab_size : int : Kích thước từ điển
+        special_tokens : list[str] : Danh sách các token đặc biệt
+    """
+    def __init__(self, iterator : Iterable[str], vocab_size: int = 1000 , special_tokens : list[str] = None) ->None:
+        self.word_frequency = {}
+        if special_tokens is None:
+            self.special_tokens = ['<unk>', '<pad>', '<sos>', '<eos>']
+        else: 
+            self.special_tokens = special_tokens
+        self.vocab_size = vocab_size
+        self.vocab = { token: idx for idx, token in enumerate(self.special_tokens)}
+
+        tokens = next(iterator, 0)
+        while tokens:
+            for token in tokens:
+                self.word_frequency[token] = self.word_frequency.get(token, 0) + 1
+            tokens = next(iterator,0)
+        # Sắp xếp các token theo trình tự giảm dần tần suất xuất hiện.
+        TopK_word_MostFreq = sorted(self.word_frequency, key= lambda x:self.word_frequency[x], reverse=True)[:vocab_size-4]
+        # get topvocab_size-4 token have most frequency 
+        for idx, token in enumerate(TopK_word_MostFreq):
+            self.vocab[token] = idx + 4
+        # string2index
+        self.stoi = self.vocab
+        # index2string
+        self.itos = {value: key for key, value in self.stoi.items()}
+    
+    # idx mặc định cho những token không có trong vocab - OOV
+    def set_default(self, token):
+        if token is None:
+            return self.stoi.get('<unk>')
+        return self.stoi.get(token)
+    
+    def get_padding_token(self, token):
+        if token is None:
+            return self.stoi.get('<pad>')
+        return self.stoi.get(token)
+    def get_start_token(self, token):
+        if token is None:
+            return self.stoi['<sos>']
+        return self.stoi.get(token)
+
+    def get_end_token(self, token):
+        if token is None:
+            return self.stoi['<eos>']
+        return self.stoi.get(token)
+        
+    def __call__(self, tokens : list[str]) -> list[int]:
+        return [self.stoi.get(token, self.set_default()) for token in tokens]
+    
+    # lưu vocab dưới dạng json để tái sử dựng ở nhiều nơi
+    def save_vocab(self, path : str) ->None:
+        config_vocab = {
+            'stoi' : self.stoi,
+            'itos' : self.itos,
+            'vocab_size' : self.vocab_size,
+            'special_tokens' : self.special_tokens
+        }
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(config_vocab, f, ensure_ascii=False, indent=4)
+    # nạp vocab từ file json
+    def load_vocab(self, path : str) -> None:
+        with open(path, 'r', encoding='utf-8') as f:
+            config_vocab = json.load(f)
+        self.stoi = config_vocab['stoi']
+        self.itos = config_vocab['itos']
+        self.vocab_size = config_vocab['vocab_size']
+        self.special_tokens = config_vocab['special_tokens']
