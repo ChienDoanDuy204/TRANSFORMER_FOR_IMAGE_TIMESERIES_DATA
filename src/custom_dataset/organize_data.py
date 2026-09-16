@@ -1,11 +1,19 @@
 from pathlib import Path
 from torch.utils.data import Dataset
 import json
+import sys
+import torch
 from PIL import Image
 from torchvision.transforms import transforms
 
 # work segmentation cho Tiếng Việt
 from underthesea import word_tokenize
+
+
+ROOT_DIR = Path.cwd().parent
+# add root to sys.path
+sys.path.append(str(ROOT_DIR))
+from src.NLP.tokenizer import *
 
 class ImageCaptionDataSet(Dataset):
     """
@@ -18,7 +26,7 @@ class ImageCaptionDataSet(Dataset):
     img_size: kích thước của ảnh
     max_length: độ dài tối đa của caption
     """
-    def __init__(self, img_dir: str = None, caption_dir: str = None, split: str = 'train', transformation: list = None, img_size : tuple = (224,224), max_length: int = None, vocab = None):
+    def __init__(self, img_dir: str = None, caption_dir: str = None, split: str = 'train', transformation: list = None, img_size : tuple = (224,224), max_length: int = 100, vocab = None):
         super().__init__()
         self.img_dir = Path(img_dir) if img_dir is not None else None # Đường dẫn chứa ảnh
         self.caption_dir = Path(caption_dir) if caption_dir is not None else None # Đường dẫn thư mục chứa caption
@@ -30,6 +38,8 @@ class ImageCaptionDataSet(Dataset):
         self.transformer = transforms.Compose(list_transforms)
 
         self.max_length = max_length # Độ dài tối đa của caption
+        self.vocab = vocab
+        self.tokenizer = Tokenizer() 
         if split in ['train','val','test']:
             self.split = split
         else:
@@ -57,7 +67,15 @@ class ImageCaptionDataSet(Dataset):
         return img
     
     def processing_caption(self, caption):
-        pass
+        idx_tokens = self.vocab(self.tokenizer(caption))
+        # Số lượng padding thêm vào trong câu
+        num_padding = self.max_length - len(idx_tokens)
+        # Thêm <SOS> token ở đầu câu và padding ở cuối câu, nếu num_padding<=0 + list rỗng
+        idx_tokens = [self.vocab.get_start_token()] + idx_tokens + [self.vocab.get_padding_token()] * num_padding
+        # Thêm <EOS> token ở cuối câu
+        idx_tokens += [self.vocab.get_end_token()]
+        return torch.tensor(idx_tokens[:-1]), torch.tensor(idx_tokens[1:])
+
 
     def __getitem__(self, idx):
         img_name, idx_caption = self.sample[idx]
@@ -65,4 +83,8 @@ class ImageCaptionDataSet(Dataset):
         caption = self.data[img_name]['captions'][idx_caption]
         tokens = word_tokenize(caption, format = 'text')
         img = self.processing_img(img_path)
-        return img, tokens
+        y_pred = []
+        y = tokens
+        if self.vocab is not None:
+            y_pred, y = self.processing_caption(caption)
+        return img, y_pred, y
