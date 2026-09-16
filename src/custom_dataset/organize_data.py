@@ -70,10 +70,8 @@ class ImageCaptionDataSet(Dataset):
         idx_tokens = self.vocab(self.tokenizer(caption))
         # Số lượng padding thêm vào trong câu
         num_padding = self.max_length - len(idx_tokens)
-        # Thêm <SOS> token ở đầu câu và padding ở cuối câu, nếu num_padding<=0 + list rỗng
-        idx_tokens = [self.vocab.get_start_token()] + idx_tokens + [self.vocab.get_padding_token()] * num_padding
-        # Thêm <EOS> token ở cuối câu
-        idx_tokens += [self.vocab.get_end_token()]
+        # Thêm <SOS> token ở đầu câu, <EOS> ở cuối câu, nếu seq_length< length-> thêm padding nếu num_padding<=0 + list rỗng
+        idx_tokens = [self.vocab.get_start_token()] + idx_tokens[:self.max_length] + [self.vocab.get_end_token()] + [self.vocab.get_padding_token()] * num_padding
         return torch.tensor(idx_tokens[:-1]), torch.tensor(idx_tokens[1:])
 
 
