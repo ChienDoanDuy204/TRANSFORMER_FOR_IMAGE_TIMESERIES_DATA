@@ -1,9 +1,12 @@
 from pathlib import Path
 from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pad_sequence
 import json
 import sys
 import torch
 from PIL import Image
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 from torchvision.transforms import transforms
 
 # work segmentation cho Tiếng Việt
@@ -24,20 +27,18 @@ class ImageCaptionDataSet(Dataset):
     split: Tập dữ liệu muốn lấy gồm các tập ["train","val","test"]
     transformation: list các phép biến đổi tác động lên ảnh
     img_size: kích thước của ảnh
-    max_length: độ dài tối đa của caption
     """
-    def __init__(self, img_dir: str = None, caption_dir: str = None, split: str = 'train', transformation: list = None, img_size : tuple = (224,224), max_length: int = 100, vocab = None):
+    def __init__(self, img_dir: str = None, caption_dir: str = None, split: str = 'train', transformation: list = None, img_size : tuple = (224,224), vocab = None):
         super().__init__()
         self.img_dir = Path(img_dir) if img_dir is not None else None # Đường dẫn chứa ảnh
         self.caption_dir = Path(caption_dir) if caption_dir is not None else None # Đường dẫn thư mục chứa caption
         self.sample = [] # sample include img_name and index of caption
 
         list_transforms = [transforms.Resize(img_size),transforms.ToTensor()]
-        if transformation:
+        if transformation is not None:
             list_transforms.extend(transformation)
         self.transformer = transforms.Compose(list_transforms)
 
-        self.max_length = max_length # Độ dài tối đa của caption
         self.vocab = vocab
         self.tokenizer = Tokenizer() 
         if split in ['train','val','test']:
@@ -66,13 +67,11 @@ class ImageCaptionDataSet(Dataset):
         img = self.transformer(img)
         return img
     
-    def processing_caption(self, caption):
-        idx_tokens = self.vocab(self.tokenizer(caption))
-        # Số lượng padding thêm vào trong câu
-        num_padding = self.max_length - len(idx_tokens)
-        # Thêm <SOS> token ở đầu câu, <EOS> ở cuối câu, nếu seq_length< length-> thêm padding nếu num_padding<=0 + list rỗng
-        idx_tokens = [self.vocab.get_start_token()] + idx_tokens[:self.max_length] + [self.vocab.get_end_token()] + [self.vocab.get_padding_token()] * num_padding
-        return torch.tensor(idx_tokens[:-1]), torch.tensor(idx_tokens[1:])
+    def processing_caption(self, tokens):
+        idx_tokens = self.vocab(tokens)
+        # Thêm <SOS> token ở đầu câu, <EOS> ở cuối câu
+        idx_tokens = [self.vocab.get_start_token()] + idx_tokens + [self.vocab.get_end_token()]
+        return idx_tokens
 
 
     def __getitem__(self, idx):
@@ -81,8 +80,35 @@ class ImageCaptionDataSet(Dataset):
         caption = self.data[img_name]['captions'][idx_caption]
         tokens = word_tokenize(caption, format = 'text')
         img = self.processing_img(img_path)
-        y_pred = []
-        y = tokens
+
         if self.vocab is not None:
-            y_pred, y = self.processing_caption(caption)
-        return img, y_pred, y
+            idx_tokens = self.processing_caption(tokens)
+            return img, idx_tokens
+        return img, tokens
+
+
+# hàm padding động (dynamic padding) theo độ dài của câu dài nhất trong batch
+def collate_fn(batch, idx_padd_token: int = None):
+    '''
+    batch: list tuple (img, idx_tokens - có độ dài khác nhau)
+    - image: Tensor(B, 3, H, W)- có kích thước cố định giữa các sample do sử dụng transforms.Resize
+    - idx_tokens: list idx có độ dài khác nhau giữa các sample
+    return: 
+    - imgs: Tensor(B, 3, H, W)
+    - idx_tokens: Tensor(B, max_seq_len trong batch)
+    - key_padding_mask: Tensor(B, max_seq_len trong batch) - True = vị trí padding
+    '''
+    imgs, list_idx_tokens = zip(*batch)
+    #imgs: torch.tensor
+
+    # -------------- Ảnh: stack - xếp chồng nhiểu ảnh trực tiếp vì có shape cố định ---------
+    imgs = torch.stack(imgs, dim = 0) # batch_first = True -> (B, C, H, W)
+
+    #-------------- idx_tokens: padding động theo độ dài của câu dài nhất trong batch -----------
+    list_idx_tokens = [torch.tensor(idx_token) for idx_token in list_idx_tokens]
+    padded_idx_tokens = pad_sequence(list_idx_tokens, batch_first =True, padding_value=idx_padd_token)
+
+    #-------------- Tạo key_padding_mask: Tensor(B, max_seq_len trong batch) - True = vị trí padding -----------
+    key_padding_mask = (padded_idx_tokens == idx_padd_token)
+    return imgs, padded_idx_tokens, key_padding_mask
+    

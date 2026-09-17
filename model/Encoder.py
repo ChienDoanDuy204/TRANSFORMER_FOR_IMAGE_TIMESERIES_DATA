@@ -31,7 +31,7 @@ class TransformerEncoderBlock(nn.Module):
         return x
 
 class ViT_Encoder(nn.Module):
-    def __init__(self, img_size: int = 224, patch_size: int =16, in_channels: int =3,forward_dim: int = 1024,embedding_dim: int =512, num_heads: int =12, num_layers: int =12) -> None:
+    def __init__(self, img_size: int = 224, patch_size: int =16, in_channels: int =3,forward_dim: int = 1024,embedding_dim: int =512, num_heads: int =12, num_layers: int =12, dropout: float = 0.1) -> None:
         super().__init__()
         self.img_size = img_size # Kích thước của ảnh đầu vào
         self.patch_size = patch_size # Số lượng vùng ảnh được chia nhỏ
@@ -40,11 +40,12 @@ class ViT_Encoder(nn.Module):
         self.num_heads = num_heads # Số lượng head trong cơ chế self-attention
         self.num_layers = num_layers # Số lượng lớp transformer encoder
         self.forward_dim = forward_dim 
+        self.dropout = dropout
         self.positional_encoding = nn.Parameter(torch.randn(1, (img_size//patch_size)**2, embedding_dim), requires_grad=True)
         self.patch_projection = nn.Conv2d(in_channels = self.in_channels, out_channels=self.embedding_dim, kernel_size=self.patch_size, stride=self.patch_size)
         self.blocks_encoder = nn.ModuleList([
             TransformerEncoderBlock(embedding_dim=self.embedding_dim, 
-            num_heads=self.num_heads, forward_dim=self.forward_dim, dropout=0.1)
+            num_heads=self.num_heads, forward_dim=self.forward_dim, dropout=self.dropout)
             for _ in range(self.num_layers)
             ])
         
