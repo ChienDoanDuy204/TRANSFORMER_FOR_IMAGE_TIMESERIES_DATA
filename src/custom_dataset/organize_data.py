@@ -32,6 +32,8 @@ class ImageCaptionDataSet(Dataset):
         super().__init__()
         self.img_dir = Path(img_dir) if img_dir is not None else None # Đường dẫn chứa ảnh
         self.caption_dir = Path(caption_dir) if caption_dir is not None else None # Đường dẫn thư mục chứa caption
+        if self.img_dir is None or self.caption_dir is None:
+            raise ValueError("img_dir or caption_dir is None")
         self.sample = [] # sample include img_name and index of caption
 
         list_transforms = [transforms.Resize(img_size),transforms.ToTensor()]

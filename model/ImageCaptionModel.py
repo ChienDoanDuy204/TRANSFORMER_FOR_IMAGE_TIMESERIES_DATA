@@ -57,7 +57,8 @@ class TrainModel:
         model: nn.Module = None,
         img: Union[torch.Tensor, Image.Image, str, Path] = None,
         vocab = None,
-        max_length_generate: int = 50
+        max_length_generate: int = 50,
+        transformation: list = None
     ) -> str:
         """
         Sinh caption từ ảnh đầu vào bằng cơ chế giải mã tự hồi quy (Autoregressive Greedy Search).
@@ -88,10 +89,10 @@ class TrainModel:
 
         if isinstance(img, Image.Image):
             target_size = getattr(model, 'img_size', 224)
-            transform = transforms.Compose([
-                transforms.Resize((target_size, target_size)),
-                transforms.ToTensor()
-            ])
+            list_transformation = [transforms.Resize((target_size, target_size)), transforms.ToTensor()]
+            if transformation is not None:
+                list_transformation.extend(transformation)
+            transform = transforms.Compose(list_transformation)
             img = transform(img)
 
         if not isinstance(img, torch.Tensor):
@@ -157,8 +158,8 @@ class TrainModel:
             words = [str(idx) for idx in generated_tokens]
 
         # 6. Loại bỏ special tokens và ghép lại thành câu hoàn chỉnh
-        special_tokens_to_strip = {'<sos>', '<eos>', '<pad>'}
-        filtered_words = [w for w in words if w not in special_tokens_to_strip]
+        special_tokens_to_strip = {'<sos>', '<eos>', '<pad>', None}
+        filtered_words = [str(w) for w in words if w not in special_tokens_to_strip and w is not None]
         caption = " ".join(filtered_words)
 
         return caption
@@ -169,7 +170,8 @@ class TrainModel:
         val_loader: DataLoader = None,
         criterion = None,
         vocab = None,
-        max_length_generate: int = 50
+        max_length_generate: int = 50,
+        num_batches: int = 1
     ) -> dict:
         """
         Đánh giá mô hình trên tập validation bằng các độ đo Loss, Accuracy và BLEU-1 -> BLEU-4.
@@ -180,6 +182,8 @@ class TrainModel:
             criterion: Hàm mất mát (Loss function). Nếu là None, mặc định sử dụng self.criterion.
             vocab: Đối tượng từ điển (BuildVocabFromIterator hoặc có stoi/itos/vocab_reverse).
             max_length_generate: Số lượng token tối đa cần sinh khi tính BLEU (mặc định 50).
+            num_batches: Số lượng batch cần đánh giá (mặc định 1 để tiết kiệm thời gian huấn luyện.
+                         Nếu là None thì sẽ đánh giá toàn bộ tập val_loader).
 
         Returns:
             dict: Chứa các giá trị {'loss': float, 'accuracy': float, 'bleu1': float, 'bleu2': float, 'bleu3': float, 'bleu4': float}
@@ -202,6 +206,9 @@ class TrainModel:
         if vocab is None:
             vocab = getattr(self, 'vocab', None)
 
+        if num_batches is not None and num_batches <= 0:
+            return {'loss': 0.0, 'accuracy': 0.0, 'bleu1': 0.0, 'bleu2': 0.0, 'bleu3': 0.0, 'bleu4': 0.0}
+
         device = getattr(self, 'device', 'cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device)
         model.eval()
@@ -212,22 +219,17 @@ class TrainModel:
         references = []
         hypotheses = []
 
+        total_batches = min(num_batches, len(val_loader)) if (num_batches is not None and hasattr(val_loader, '__len__')) else num_batches
         with torch.no_grad():
-            for imgs, idx_captions, key_padding_mask in tqdm(val_loader, desc="Evaluating", leave=False):
+            for batch_idx, (imgs, idx_captions, key_padding_mask) in enumerate(tqdm(val_loader, total=total_batches, desc="Evaluating", leave=False)):
                 imgs = imgs.to(device)
 
                 # 1. Tính loss & accuracy (teacher-forcing) nếu có criterion
                 if criterion is not None:
-                    if idx_captions.ndim == 2:
-                        y_pred = idx_captions[:, :-1]
-                        y_true = idx_captions[:, 1:]
-                        train_mask = key_padding_mask[:, :-1] if key_padding_mask is not None else None
-                        target_mask = key_padding_mask[:, 1:] if key_padding_mask is not None else None
-                    else:
-                        y_pred = idx_captions[:, :-1, :]
-                        y_true = idx_captions[:, 1:, :]
-                        train_mask = key_padding_mask
-                        target_mask = key_padding_mask
+                    y_pred = idx_captions[:, :-1]
+                    y_true = idx_captions[:, 1:]
+                    train_mask = key_padding_mask[:, :-1] if key_padding_mask is not None else None
+                    target_mask = key_padding_mask[:, 1:] if key_padding_mask is not None else None
 
                     y_pred = y_pred.to(device)
                     y_true = y_true.to(device)
@@ -263,15 +265,19 @@ class TrainModel:
                         if hasattr(vocab, 'vocab_reverse'):
                             raw_words = vocab.vocab_reverse(true_ids)
                         elif hasattr(vocab, 'itos'):
-                            raw_words = [vocab.itos.get(idx, '<unk>') for idx in true_ids]
+                            raw_words = [vocab.itos.get(idx) or vocab.itos.get(str(idx)) or '<unk>' for idx in true_ids]
                         else:
                             raw_words = [str(idx) for idx in true_ids]
 
                         special_tokens = {'<sos>', '<eos>', '<pad>', None}
-                        ref_tokens = [w for w in raw_words if w not in special_tokens]
+                        ref_tokens = [str(w) for w in raw_words if w not in special_tokens and w is not None]
 
                         references.append([ref_tokens])
                         hypotheses.append(hyp_tokens)
+
+                # Dừng nếu đã đánh giá đủ số batch yêu cầu (mặc định 1 batch)
+                if num_batches is not None and (batch_idx + 1) >= num_batches:
+                    break
 
         val_loss = (val_loss_total / total_valid_tokens) if total_valid_tokens > 0 else 0.0
         val_acc = (val_acc_total / total_valid_tokens) if total_valid_tokens > 0 else 0.0
@@ -303,12 +309,11 @@ class TrainModel:
         train_loader: DataLoader = None,
         val_loader: DataLoader = None,
         n_epochs: int = 100,
-        learning_rate: float = 1e-4,
         criterion = None,
-        is_shuffle: bool = True,
         optimizer = None,
         scheduler = None,
-        vocab = None
+        vocab = None,
+        num_val_batches: int = 1
     )-> None:
         try:
             self.model = model.to(self.device)
@@ -321,6 +326,7 @@ class TrainModel:
         self.criterion = criterion
         self.optimizer = optimizer
         self.vocab = vocab
+        self.num_val_batches = num_val_batches
         self.Losses = []
         self.Accuracies = []
         self.Val_Losses = []
@@ -387,7 +393,8 @@ class TrainModel:
                     model=self.model,
                     val_loader=self.val_loader,
                     criterion=self.criterion,
-                    vocab=vocab
+                    vocab=vocab,
+                    num_batches=self.num_val_batches
                 )
                 self.Val_Losses.append(val_metrics['loss'])
                 self.Val_Accuracies.append(val_metrics['accuracy'])
