@@ -220,3 +220,7 @@ __marimo__/
 
 # data - folder chứa DL 
 data
+
+# model, model weight
+*.pth
+*.pt

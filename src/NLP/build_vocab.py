@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 import json
+import torch.nn as nn
 """
 iterable: đối tượng có thể lặp - giống như quấn sách có lật ra từng trang nhưng nó lại không tự động lật trang cho bạn.
 iterator: đối tượng thực hiện việc lặp - giống như tay của bạn khi lật từng trang sách. Mỗi lần bạn lật là bạn đang sử dụng iterator.
@@ -18,7 +19,7 @@ lên RAM có thể khiến tràn RAM
 
 
 
-class BuildVocabFromIterator:
+class BuildVocabFromIterator(nn.Module):
     """
     Class này có nhiệm vụ xây dựng từ điển từ một tập hợp các từ (iterator).
     param: 
@@ -26,8 +27,9 @@ class BuildVocabFromIterator:
         vocab_size : int : Kích thước từ điển
         special_tokens : list[str] : Danh sách các token đặc biệt
     """
-    def __init__(self, iterator : Iterable[str], vocab_size: int = 1000 , special_tokens : list[str] = None) ->None:
-        if iterator:
+    def __init__(self, iterator : Iterable[str] = None, vocab_size: int = 1000 , special_tokens : list[str] = None) ->None:
+        super().__init__()
+        if iterator is not None:
             # dict = {word:frequency}
             self.word_frequency = {}
             # nếu không truyền vào special_tokens thì mặc định là ['<unk>', '<pad>', '<sos>', '<eos>']
@@ -56,6 +58,8 @@ class BuildVocabFromIterator:
             self.stoi = self.vocab
             # index2string
             self.itos = {value: key for key, value in self.stoi.items()}
+        else:
+            pass
     
     # idx mặc định cho những token không có trong vocab - OOV
     def set_default(self, token: str = None):
@@ -78,7 +82,7 @@ class BuildVocabFromIterator:
             return self.stoi['<eos>']
         return self.stoi.get(token)
         
-    def __call__(self, tokens : list[str]) -> list[int]:
+    def forward(self, tokens : list[str]) -> list[int]:
         return [self.stoi.get(token, self.set_default()) for token in tokens]
     
     # Hàm sinh chuỗi từ idx sang text(token)
@@ -101,7 +105,8 @@ class BuildVocabFromIterator:
         with open(path, 'r', encoding='utf-8') as f:
             config_vocab = json.load(f)
         self.stoi = config_vocab['stoi']
-        self.itos = config_vocab['itos']
+        # Đảm bảo key của itos là int (do file JSON chỉ lưu key dưới dạng string)
+        self.itos = {int(k): v for k, v in config_vocab['itos'].items()}
         self.vocab_size = config_vocab['vocab_size']
         self.special_tokens = config_vocab['special_tokens']
         print(f"Vocab loaded from {path}")
