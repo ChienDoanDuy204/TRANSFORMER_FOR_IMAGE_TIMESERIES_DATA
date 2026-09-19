@@ -24,7 +24,7 @@ class ImageCaptionModel(nn.Module):
         self.dropout = dropout
         self.num_layers = num_layers
         self.vocab_size = vocab_size
-        self.transformer_encoder = ViT_Encoder(img_size=self.img_size, patch_size=self.patch_size, in_channels=self.in_channels,forward_dim=self.forward_dim,embedding_dim=self.embedding_dim, num_heads=self.num_heads, num_layers=self.num_layers, dropout=self.dropout)
+        self.transformer_encoder = Timm_ViT_Encoder(embedding_dim=self.embedding_dim)
         self.transformer_decoder = TransformerDecoder(embedding_dim=self.embedding_dim, num_heads=self.num_heads, forward_dim=self.forward_dim, dropout=self.dropout, num_layers=self.num_layers, vocab_size= vocab_size)
         self.fc_out = nn.Linear(self.embedding_dim, self.vocab_size)
     

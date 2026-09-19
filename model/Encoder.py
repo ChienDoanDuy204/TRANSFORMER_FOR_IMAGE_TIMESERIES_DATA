@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-
-
+import timm
 
 class TransformerEncoderBlock(nn.Module):
     def __init__(self, embedding_dim: int= 512, num_heads: int=12, forward_dim: int =1024, dropout: float = 0.1) -> None:
@@ -59,4 +58,24 @@ class ViT_Encoder(nn.Module):
         x = x + self.positional_encoding # Lưu ý: Kích thước của positional_encoding phải khớp với số lượng patch
         for block in self.blocks_encoder:
             x = block(x) # Qua cơ chế multihead self-attention với residual connection
+        return x
+
+class Timm_ViT_Encoder(nn.Module):
+    def __init__(self, embedding_dim: int = 512) -> None:
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.timm_vit = timm.create_model('vit_tiny_patch16_224', pretrained=True)
+        
+        vit_dim = self.timm_vit.embed_dim  # 192 cho vit_tiny
+        
+        # Bỏ head gốc, không dùng nữa
+        self.timm_vit.head = nn.Identity()
+        
+        # Projection riêng, áp dụng thủ công trong forward
+        self.proj = nn.Linear(vit_dim, embedding_dim) if vit_dim != embedding_dim else nn.Identity()
+
+    def forward(self, X):
+        x = self.timm_vit.forward_features(X)   # (B, 1+num_patch, vit_dim=192)
+        x = x[:, 1:, :]                          # (B, num_patch, vit_dim=192) - bỏ CLS token
+        x = self.proj(x)                         # (B, num_patch, embedding_dim=512)
         return x

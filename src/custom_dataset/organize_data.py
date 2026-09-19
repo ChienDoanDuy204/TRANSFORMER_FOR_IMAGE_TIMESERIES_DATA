@@ -17,7 +17,7 @@ ROOT_DIR = Path.cwd().parent
 # add root to sys.path
 sys.path.append(str(ROOT_DIR))
 from src.NLP.tokenizer import *
-
+tokenizer = Tokenizer()
 class ImageCaptionDataSet(Dataset):
     """
     Đây là dataset được custom theo mục đích của dự án, được kế thừa từ lớp Dataset trong pytorch
@@ -70,6 +70,7 @@ class ImageCaptionDataSet(Dataset):
         return img
     
     def processing_caption(self, tokens):
+        tokens = tokenizer(tokens)
         idx_tokens = self.vocab(tokens)
         # Thêm <SOS> token ở đầu câu, <EOS> ở cuối câu
         idx_tokens = [self.vocab.get_start_token()] + idx_tokens + [self.vocab.get_end_token()]
