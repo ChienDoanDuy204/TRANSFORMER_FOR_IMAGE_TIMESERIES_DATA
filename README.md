@@ -3,6 +3,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.14%2B%20(CUDA)-orange?logo=pytorch)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model%20Weights-yellow)](https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi)
 ![Next.js](https://img.shields.io/badge/Next.js-15%2B%20Turbopack-black?logo=next.js)
 ![Dataset](https://img.shields.io/badge/Dataset-UIT--OpenVIIC-purple)
@@ -110,7 +111,7 @@ Dưới đây là hình ảnh trực quan của hệ thống khi hoạt động 
 | **Kích thước từ điển** | **10,000 từ vựng tiếng Việt** (`underthesea` segmentation) |
 | **Ký hiệu đặc biệt** | `<unk>` (0), `<pad>` (1), `<sos>` (2), `<eos>` (3) |
 | **Chiều dài chuỗi tối đa** | 500 tokens (inference tối đa 35–50 tokens) |
-| **Trọng số huấn luyện** | `model_weight.pth` (**102.5 MB** / 102,465,555 bytes) |
+| **Trọng số huấn luyện** | `model_weight.pth` (**102.5 MB**) • [doanduychien204/GenerateCaptionFromImageWithTransformer](https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer) |
 
 ---
 
@@ -192,7 +193,51 @@ pip install -r requirements.txt
 
 ---
 
-### 3. Khởi chạy FastAPI Backend
+### 3. Tải trọng số mô hình (Model Weights) từ Hugging Face
+
+Trọng số mô hình đã huấn luyện hoàn chỉnh được lưu trữ tại Hugging Face Hub:  
+👉 **Repository**: [`doanduychien204/GenerateCaptionFromImageWithTransformer`](https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer)  
+👉 **Tên file**: `model_weight.pth` (~102.5 MB)
+
+Bạn có thể tải file trọng số về thư mục gốc của dự án theo một trong các cách sau:
+
+#### Cách 1: Sử dụng `huggingface-cli` (Khuyến nghị - Nhanh chóng)
+```bash
+# Cài đặt huggingface_hub nếu chưa có
+pip install huggingface_hub
+
+# Tải trực tiếp file model_weight.pth về thư mục hiện tại
+huggingface-cli download doanduychien204/GenerateCaptionFromImageWithTransformer model_weight.pth --local-dir .
+```
+
+#### Cách 2: Tải bằng lệnh `wget` hoặc `curl`
+```bash
+# Dùng wget:
+wget -O model_weight.pth https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer/resolve/main/model_weight.pth
+
+# Hoặc dùng curl:
+curl -L -o model_weight.pth https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer/resolve/main/model_weight.pth
+```
+
+#### Cách 3: Tải bằng Python Script
+```python
+from huggingface_hub import hf_hub_download
+
+hf_hub_download(
+    repo_id="doanduychien204/GenerateCaptionFromImageWithTransformer",
+    filename="model_weight.pth",
+    local_dir="."
+)
+```
+
+#### Cách 4: Tải trực tiếp qua trình duyệt Web
+1. Truy cập: [Hugging Face - doanduychien204/GenerateCaptionFromImageWithTransformer](https://huggingface.co/doanduychien204/GenerateCaptionFromImageWithTransformer)
+2. Nhấp vào tab **Files and versions** ➔ Chọn file `model_weight.pth` ➔ Nhấp nút **Download**.
+3. Di chuyển file `model_weight.pth` vừa tải về đặt tại **thư mục gốc của dự án** (`TRANSFORMER_FOR_IMAGE_TIMESERIES_DATA/model_weight.pth`).
+
+---
+
+### 4. Khởi chạy FastAPI Backend
 
 Khởi động server suy luận API tại cổng `8000`:
 ```bash
@@ -207,7 +252,7 @@ Sau khi khởi động thành công:
 
 ---
 
-### 4. Khởi chạy Next.js Frontend Studio
+### 5. Khởi chạy Next.js Frontend Studio
 
 Mở terminal thứ hai và di chuyển vào thư mục `frontend`:
 ```bash
