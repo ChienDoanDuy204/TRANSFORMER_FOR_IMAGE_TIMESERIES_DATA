@@ -90,7 +90,7 @@ class ImageCaptionDataSet(Dataset):
         return img, tokens
 
 
-# hàm padding động (dynamic padding) theo độ dài của câu dài nhất trong batch
+# hàm padding động (dynamic padding) padding các câu theo câu có độ dài của câu dài nhất trong batch
 def collate_fn(batch, idx_padd_token: int = None):
     '''
     batch: list tuple (img, idx_tokens - có độ dài khác nhau)
