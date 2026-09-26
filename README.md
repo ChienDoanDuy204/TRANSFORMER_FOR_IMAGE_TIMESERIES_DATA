@@ -343,3 +343,4 @@ Mô hình được đánh giá trên tập **UIT-OpenVIIC** với các chỉ s�
 - Sử dụng tập dữ liệu **UIT-OpenVIIC** do Đại học Công nghệ Thông tin - ĐHQG TP.HCM phát triển.
 - Thư viện NLP tiếng Việt: **underthesea**.
 - Thư viện CV - computer vision: **PyTorch**, **timm** (Ross Wightman).
+- Documentation for ViT and Artchitecture of Cross Attention: [Google Docs](https://docs.google.com/document/d/1yWkbPnPW7qxvB4F7et1ZtVz7gEySFu_eq5Q42owJQFg/edit?usp=sharing).
